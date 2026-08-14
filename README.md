@@ -1,4 +1,4 @@
-# THINKPAD ATTACK v2.0
+# THINKPAD ATTACK v3.0
 
 ## Hardware-Optimized Attack Framework
 
